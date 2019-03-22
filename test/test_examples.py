@@ -21,16 +21,19 @@ def setup_module(module):
 
 
 @mark.parametrize(['name', 'pipelinedef'], [
-    ['github', 'pipeline.toml'],
-    ['sloc', 'pipeline.toml'],
-    ['basic', 'pipeline.toml'],
-    ['local', 'pipeline.toml'],
-    ['advanced', 'pipeline.json'],
     ['advanced', 'pipeline.toml'],
-    ['test', 'pipeline.toml'],
-    ['lcov', 'pipeline.toml'],
-    ['valgrind', 'pipeline.toml'],
+    ['advanced', 'pipeline.json'],
+    ['archive', 'compress.toml'],
+    ['archive', 'extract.toml'],
+    ['basic', 'pipeline.toml'],
     ['config', 'pipeline.toml'],
+    ['cpu', 'pipeline.toml'],
+    ['github', 'pipeline.toml'],
+    ['lcov', 'pipeline.toml'],
+    ['local', 'pipeline.toml'],
+    ['sloc', 'pipeline.toml'],
+    ['test', 'pipeline.toml'],
+    ['valgrind', 'pipeline.toml'],
 ])
 def test_pipelines(name, pipelinedef):
     # Exceptions ...

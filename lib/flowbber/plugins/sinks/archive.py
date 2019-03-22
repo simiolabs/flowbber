@@ -41,6 +41,7 @@ This sink writes all collected data to a JSON file.
         override = true
         create_parents = true
         pretty = false
+        compress = false
 
 .. code-block:: json
 
@@ -53,7 +54,8 @@ This sink writes all collected data to a JSON file.
                     "output": "data.json",
                     "override": true,
                     "create_parents": true,
-                    "pretty": false
+                    "pretty": false,
+                    "compress": false
                 }
             }
         ]
@@ -128,9 +130,33 @@ Pretty output.
 
 - **Secret**: ``False``
 
+compress
+--------
+
+Compress the JSON output file in a Zip archive.
+
+If using compression, the `.zip` extension will be automatically appended
+to the `output` filename parameter if not present.
+
+Compression uses Python's `ZipFile` module using the `ZIP_DEFLATED` option,
+thus requiring the `zlib` module.
+
+- **Default**: ``False``
+- **Optional**: ``True``
+- **Schema**:
+
+  .. code-block:: python3
+
+     {
+         'type': 'boolean',
+     }
+
+- **Secret**: ``False``
+
 """  # noqa
 
 from pathlib import Path
+from zipfile import ZipFile, ZIP_DEFLATED
 
 from flowbber.components import FilterSink
 from flowbber.logging import get_logger
@@ -150,7 +176,6 @@ class ArchiveSink(FilterSink):
                 'empty': False,
             },
         )
-
         config.add_option(
             'override',
             default=False,
@@ -159,7 +184,6 @@ class ArchiveSink(FilterSink):
                 'type': 'boolean',
             },
         )
-
         config.add_option(
             'create_parents',
             default=True,
@@ -168,9 +192,16 @@ class ArchiveSink(FilterSink):
                 'type': 'boolean',
             },
         )
-
         config.add_option(
             'pretty',
+            default=False,
+            optional=True,
+            schema={
+                'type': 'boolean',
+            },
+        )
+        config.add_option(
+            'compress',
             default=False,
             optional=True,
             schema={
@@ -209,8 +240,21 @@ class ArchiveSink(FilterSink):
         if self.config.pretty.value:
             kwargs['indent'] = 4
 
-        log.info('Archiving data to {}'.format(outfile))
-        outfile.write_text(dumps(data, **kwargs), encoding='utf-8')
+        content = dumps(data, **kwargs)
+
+        # Write plain file
+        if not self.config.compress.value:
+            log.info('Archiving data to {}'.format(outfile))
+            outfile.write_text(content, encoding='utf-8')
+            return
+
+        # Write compressed file
+        if outfile.suffix != '.zip':
+            outfile = Path(outfile.parent / '{}.zip'.format(outfile.name))
+
+        log.info('Archiving compressed data to {}'.format(outfile))
+        with ZipFile(outfile, mode='w', compression=ZIP_DEFLATED) as zfd:
+            zfd.writestr(outfile.stem, content.encode('utf-8'))
 
 
 __all__ = ['ArchiveSink']

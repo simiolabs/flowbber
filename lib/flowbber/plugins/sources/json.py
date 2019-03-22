@@ -48,6 +48,7 @@ This source fetch and parses a local or remote (http, https) json file.
         encoding = "utf-8"
         ordered = true
         verify_ssl = true
+        extract = true
 
 .. code-block:: json
 
@@ -60,7 +61,8 @@ This source fetch and parses a local or remote (http, https) json file.
                     "file_uri": "file://{pipeline.dir}/file.json",
                     "encoding": "utf-8",
                     "ordered": true,
-                    "verify_ssl": true
+                    "verify_ssl": true,
+                    "extract": true
                 }
             }
         ]
@@ -159,10 +161,28 @@ schema is used.
 
 - **Secret**: ``False``
 
+extract
+-------
+
+- **Default**: ``False``
+- **Optional**: ``True``
+- **Schema**:
+
+  .. code-block:: python3
+
+     {
+         'type': 'boolean',
+     }
+
+- **Secret**: ``False``
+
 """  # noqa
 
+from pathlib import Path
 from urllib import request
+from urllib.parse import urlparse
 from collections import OrderedDict
+from zipfile import ZipFile, ZIP_DEFLATED
 from ssl import create_default_context, CERT_NONE
 
 from flowbber.components import Source
@@ -203,12 +223,21 @@ class JSONSource(Source):
                 'type': 'boolean'
             },
         )
+        config.add_option(
+            'extract',
+            default=False,
+            optional=True,
+            schema={
+                'type': 'boolean',
+            },
+        )
 
     def collect(self):
 
         # Get config
         file_uri = self.config.file_uri.value
         encoding = self.config.encoding.value
+        extract = self.config.extract.value
 
         # Get decoding function
         ordered = self.config.ordered.value
@@ -224,6 +253,14 @@ class JSONSource(Source):
             def loads(text):
                 return srcloads(text)
 
+        def decode(fd, filename):
+            if extract:
+                with ZipFile(fd, mode='r', compression=ZIP_DEFLATED) as zfd:
+                    content = zfd.read(filename)
+            else:
+                content = fd.read()
+            return content.decode(encoding)
+
         # Determine schema
         if '://' in file_uri:
             schema, resource = file_uri.split('://', 1)
@@ -234,9 +271,8 @@ class JSONSource(Source):
         # Get source file from the file system
         if schema == 'file':
             with open(resource, 'rb') as fd:
-                return loads(
-                    fd.read().decode(encoding)
-                )
+                filename = Path(resource)
+                return loads(decode(fd, filename.stem))
 
         # Get file from an HTTP URL
         elif schema in ['http', 'https']:
@@ -248,9 +284,8 @@ class JSONSource(Source):
                 context.verify_mode = CERT_NONE
 
             with request.urlopen(file_uri, context=context) as fd:
-                return loads(
-                    fd.read().decode(encoding)
-                )
+                filename = Path(urlparse(file_uri).path)
+                return loads(decode(fd, filename.stem))
 
         raise ValueError('Unsupported schema {}'.format(schema))
 
